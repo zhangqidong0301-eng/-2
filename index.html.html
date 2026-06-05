@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>大理石余料管理系统</title>
+    <style>
+        body { font-family: "Microsoft YaHei", sans-serif; margin: 20px; background: #f9f9f9; }
+        h1 { color: #d97706; }
+        .container { background:white; padding:20px; border-radius:8px; box-shadow:0 2px 8px rgba(0,0,0,0.1); margin-bottom:20px; }
+        input, button { padding: 10px; margin: 5px; border-radius: 5px; border: 1px solid #ddd; }
+        button { background: #d97706; color: white; border: none; cursor: pointer; font-weight: bold; padding: 12px 24px; }
+        button:hover { background: #b45309; }
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; background: white; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+        th, td { border: 1px solid #ddd; padding: 10px; text-align: left; vertical-align: middle; }
+        th { background-color: #f0f0f0; }
+        .thumbnail { width: 80px; height: 60px; object-fit: cover; border-radius: 4px; cursor: pointer; border: 1px solid #ddd; }
+        .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); justify-content: center; align-items: center; z-index: 1000; }
+        .modal img { max-width: 90%; max-height: 90%; border-radius: 8px; }
+        .success { color: green; font-weight: bold; }
+    </style>
+</head>
+<body>
+    <h1>大理石余料管理系统</h1>
+    
+    <div class="container">
+        <h2>新增余料</h2>
+        <input id="name" placeholder="品种/颜色 *" />
+        <input id="length" type="number" placeholder="长度(cm) *" />
+        <input id="width" type="number" placeholder="宽度(cm) *" />
+        <input id="price" type="number" placeholder="价格(元) *" />
+        <input id="remark" placeholder="备注/位置" />
+        <input id="image" type="file" accept="image/*" />
+        <button id="addBtn">添加余料</button>
+        <span id="status" style="margin-left:15px;"></span>
+    </div>
+
+    <input id="search" placeholder="搜索品种或备注..." onkeyup="filterTable()" style="width:100%; padding:12px; font-size:16px; margin-bottom:15px;" />
+
+    <table id="table">
+        <thead>
+            <tr>
+                <th>图片</th>
+                <th>品种</th>
+                <th>尺寸 (cm)</th>
+                <th>价格 (元)</th>
+                <th>面积 (m²)</th>
+                <th>备注</th>
+                <th>操作</th>
+            </tr>
+        </thead>
+        <tbody id="tbody"></tbody>
+    </table>
+
+    <div id="modal" class="modal" onclick="this.style.display='none'">
+        <img id="modalImg" onclick="event.stopImmediatePropagation()">
+    </div>
+
+<script>
+// 数据
+let items = JSON.parse(localStorage.getItem('marbleItems')) || [];
+
+// 添加按钮事件
+document.getElementById('addBtn').addEventListener('click', addItem);
+
+function addItem() {
+    const status = document.getElementById('status');
+    status.textContent = '正在处理...';
+
+    const name = document.getElementById('name').value.trim();
+    const length = parseFloat(document.getElementById('length').value);
+    const width = parseFloat(document.getElementById('width').value);
+    const price = parseFloat(document.getElementById('price').value);
+    const remark = document.getElementById('remark').value.trim();
+    const fileInput = document.getElementById('image');
+
+    if (!name || !length || !width || !price) {
+        alert('请填写带 * 的必填信息！');
+        status.textContent = '';
+        return;
+    }
+
+    const newItem = {id: Date.now(), name, length, width, price, remark};
+
+    if (fileInput.files && fileInput.files[0]) {
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            newItem.image = e.target.result;
+            items.push(newItem);
+            finishAdd();
+        };
+        reader.onerror = () => {
+            status.textContent = '图片读取失败';
+        };
+        reader.readAsDataURL(fileInput.files[0]);
+    } else {
+        items.push(newItem);
+        finishAdd();
+    }
+
+    function finishAdd() {
+        localStorage.setItem('marbleItems', JSON.stringify(items));
+        renderTable();
+        clearForm();
+        status.innerHTML = '✅ 添加成功！';
+        setTimeout(() => status.textContent = '', 2500);
+    }
+}
+
+function clearForm() {
+    document.getElementById('name').value = '';
+    document.getElementById('length').value = '';
+    document.getElementById('width').value = '';
+    document.getElementById('price').value = '';
+    document.getElementById('remark').value = '';
+    document.getElementById('image').value = '';
+}
+
+function renderTable(filtered = items) {
+    const tbody = document.getElementById('tbody');
+    tbody.innerHTML = '';
+    
+    filtered.forEach(item => {
+        const area = (item.length * item.width / 10000).toFixed(2);
+        const tr = document.createElement('tr');
+        
+        const imgHtml = item.image 
+            ? `<img src="${item.image}" class="thumbnail" onclick="showImage('${item.image}')">` 
+            : '无图片';
+        
+        tr.innerHTML = `
+            <td>${imgHtml}</td>
+            <td>${item.name}</td>
+            <td>${item.length} × ${item.width}</td>
+            <td>¥${item.price}</td>
+            <td>${area}</td>
+            <td>${item.remark || '-'}</td>
+            <td><button onclick="deleteItem(${item.id})" style="background:#ef4444; padding:6px 12px;">删除</button></td>
+        `;
+        tbody.appendChild(tr);
+    });
+}
+
+function deleteItem(id) {
+    if (confirm('确定删除这条记录吗？')) {
+        items = items.filter(i => i.id !== id);
+        localStorage.setItem('marbleItems', JSON.stringify(items));
+        renderTable();
+    }
+}
+
+function filterTable() {
+    const keyword = document.getElementById('search').value.toLowerCase();
+    const filtered = items.filter(item => 
+        item.name.toLowerCase().includes(keyword) || 
+        (item.remark && item.remark.toLowerCase().includes(keyword))
+    );
+    renderTable(filtered);
+}
+
+function showImage(src) {
+    document.getElementById('modalImg').src = src;
+    document.getElementById('modal').style.display = 'flex';
+}
+
+// 初始化
+renderTable();
+</script>
+</body>
+</html>
